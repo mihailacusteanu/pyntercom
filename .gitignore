@@ -33,4 +33,4 @@ htmlcov/
 *.log
 *.sqlite
 .env.secret
-src/configs/esp8266_config.py
+src/config/esp8266_config.py
