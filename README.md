@@ -50,7 +50,7 @@ Pyntercom is a MicroPython project that enables smart functionality for a standa
 5. Deploy the code to your ESP8266 using the provided script:
 
    ```bash
-   ./deploy.sh your_port
+   ./scripts/deploy.sh your_port
    ```
 
 ## Configuration
@@ -117,7 +117,13 @@ Below is the wiring schematic for connecting the ESP8266 to your intercom system
 For local development on your computer:
 
 ```bash
-./repl.sh
+./scripts/repl.sh
+```
+
+You can also clean Python cache files with:
+
+```bash
+./scripts/clean.sh
 ```
 
 This will start a Python REPL with access to the mock drivers.
