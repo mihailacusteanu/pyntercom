@@ -19,7 +19,6 @@ class Esp8266WifiDriver(WifiDriverInterface):
             print("WiFi interfaces initialized")
         except ImportError:
             print("Warning: network module not available (not running on ESP8266)")
-            # For testing/development on non-ESP8266 platforms
             self.sta_if = None
             self.ap_if = None
 
@@ -36,26 +35,22 @@ class Esp8266WifiDriver(WifiDriverInterface):
         print(f"Connecting to WiFi SSID: {ssid}")
 
         try:
-            # Activate station interface
             self.sta_if.active(True)
 
-            # Disconnect if already connected to a different network
             if self.sta_if.isconnected():
                 print("Disconnecting from current network...")
                 self.sta_if.disconnect()
-                time.sleep(1)
+                sleep(1)
 
-            # Start connection
             self.sta_if.connect(ssid, password)
 
-            # Wait for connection with timeout
-            timeout = 15  # 15 seconds timeout
+            timeout = 15
             while not self.sta_if.isconnected() and timeout > 0:
                 print(".", end="")
-                time.sleep(1)
+                sleep(1)
                 timeout -= 1
 
-            print()  # New line after dots
+            print() 
 
             if self.sta_if.isconnected():
                 config = self.sta_if.ifconfig()
@@ -84,10 +79,9 @@ class Esp8266WifiDriver(WifiDriverInterface):
                 print("Disconnecting from WiFi...")
                 self.sta_if.disconnect()
 
-                # Wait for disconnection
                 timeout = 5
                 while self.sta_if.isconnected() and timeout > 0:
-                    time.sleep(0.5)
+                    sleep(0.5)
                     timeout -= 0.5
 
                 if not self.sta_if.isconnected():
