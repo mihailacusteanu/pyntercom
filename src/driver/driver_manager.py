@@ -2,6 +2,7 @@ from src.driver.wifi_driver.mock_wifi_driver import MockWifiManager
 from src.driver.wifi_driver.esp8266_wifi_driver import Esp8266WifiDriver
 from src.driver.mqtt_driver.mock_mqtt_driver import MockMqttDriver
 from src.driver.mqtt_driver.esp8266_mqtt_driver import Esp8266MQTTDriver
+
 import sys
 class DriverManager:
     def load_wifi_driver(self):
@@ -27,4 +28,14 @@ class DriverManager:
         else:
             print("Loading Mock MQTT driver for macOS")
             return MockMqttDriver()
+    def load_gpio_driver(self):
+        """Load the GPIO driver."""
+        if sys.platform == "esp8266":
+            print("Loading ESP8266 GPIO driver")
+            from src.driver.gpio_driver.esp8266_gpio_driver import ESP8266GPIODriver
+            return ESP8266GPIODriver()
+        else:
+            from src.driver.gpio_driver.mock_gpio_driver import MockGpioDriver
+            print("Loading Mock GPIO driver for macOS")
+            return MockGpioDriver()
         
