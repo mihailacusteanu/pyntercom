@@ -106,6 +106,12 @@ Connect your ESP8266 to the intercom system as follows:
 2. GPIO 13 (D7) - Output for door unlock relay
 3. GPIO 12 (D6) - Output for conversation relay
 
+### Schematic
+
+Below is the wiring schematic for connecting the ESP8266 to your intercom system:
+
+![Intercom Wiring Schematic](docs/images/schematic.png)
+
 ## Development
 
 For local development on your computer:
