@@ -1,0 +1,11 @@
+show_name: true
+show_icon: true
+type: button
+name: Open intercom door
+tap_action:
+  action: perform-action
+  perform_action: mqtt.publish
+  data:
+    topic: pyntercom/intercom/unlock
+    payload: open
+  target: {}

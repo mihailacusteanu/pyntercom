@@ -1,0 +1,13 @@
+alias: Auto Unlock on Intercom Ring
+description: ""
+triggers:
+  - entity_id: binary_sensor.intercom_ringing
+    to: "on"
+    trigger: state
+conditions: []
+actions:
+  - data:
+      topic: pyntercom/intercom/unlock
+      payload: open
+    action: mqtt.publish
+mode: single

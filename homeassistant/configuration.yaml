@@ -1,0 +1,15 @@
+mqtt:
+  binary_sensor:
+    - name: "Intercom Ringing"
+      unique_id: "intercom_call_sensor"
+      state_topic: "pyntercom/intercom/call_detected"
+      payload_on: "call_detected"
+      device_class: motion
+      off_delay: 5
+
+    - name: "Intercom Unlock Button"
+      state_topic: "pyntercom/intercom/unlock"
+      payload_on: "open"
+      payload_off: "none"
+      device_class: opening
+      off_delay: 5
