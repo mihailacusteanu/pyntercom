@@ -59,6 +59,11 @@ class Esp8266MQTTDriver(MqttDriverInterface):
 
             return True
 
+        except ImportError:
+            print("Warning: umqtt module not available (not running on ESP8266)")
+            self.connected = False
+            self.client = None
+            return False
         except Exception as e:
             print(f"✗ MQTT connection failed: {e}")
             self.connected = False

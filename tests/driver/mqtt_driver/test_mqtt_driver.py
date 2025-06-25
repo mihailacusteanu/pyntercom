@@ -488,3 +488,16 @@ def test_with_fixture(mock_mqtt_success):
     assert result is True
     assert mqtt_driver.connected is True
     mock_mqtt_success['mqtt_client'].connect.assert_called_once()
+    
+def test_esp8266_mqtt_driver_no_umqtt_module():
+    from src.driver.mqtt_driver.esp8266_mqtt_driver import Esp8266MQTTDriver
+    
+    mqtt_driver = Esp8266MQTTDriver(
+        client_id="test_client",
+        server="test.broker.com"
+    )
+    
+    result = mqtt_driver.connect()
+    assert result is False
+    assert mqtt_driver.connected is False
+    assert mqtt_driver.client is None
