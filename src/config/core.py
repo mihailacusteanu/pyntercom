@@ -30,6 +30,6 @@ CALL_DETECTED_MESSAGE = "call_detected"
 DOOR_UNLOCKED_MESSAGE = "open"
 
 if sys.platform == "esp8266":
-    from .esp8266_config import *
+    from .secret_config import *
 else:
     from .mock_config import *
