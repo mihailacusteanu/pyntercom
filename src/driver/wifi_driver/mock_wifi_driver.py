@@ -1,5 +1,5 @@
 from src.interfaces.wifi_driver import WifiDriverInterface
-class MockWifiManager(WifiDriverInterface):
+class MockWifiDriver(WifiDriverInterface):
         def set_ssid_and_password(self, ssid: str, password: str) -> None:
             """Set the SSID and password for the mock WiFi manager."""
             self.ssid = ssid

@@ -1,7 +1,7 @@
 import sys
 import types
 from src.driver.driver_manager import DriverManager
-from src.driver.wifi_driver.mock_wifi_driver import MockWifiManager
+from src.driver.wifi_driver.mock_wifi_driver import MockWifiDriver
 from src.driver.wifi_driver.esp8266_wifi_driver import Esp8266WifiDriver
 from src.driver.mqtt_driver.mock_mqtt_driver import MockMqttDriver
 from src.driver.mqtt_driver.esp8266_mqtt_driver import Esp8266MQTTDriver
@@ -25,7 +25,7 @@ def test_on_darwin_platform_it_loads_the_mock_wifi_driver(monkeypatch):
     monkeypatch.setattr(sys, "platform", "darwin")
     driver_manager = DriverManager()
     wifi_driver = driver_manager.load_wifi_driver()
-    assert isinstance(wifi_driver, MockWifiManager)
+    assert isinstance(wifi_driver, MockWifiDriver)
     monkeypatch.undo()
 
 def test_on_esp8266_platform_it_loads_the_esp8266_wifi_driver(monkeypatch):

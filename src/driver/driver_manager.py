@@ -1,4 +1,4 @@
-from src.driver.wifi_driver.mock_wifi_driver import MockWifiManager
+from src.driver.wifi_driver.mock_wifi_driver import MockWifiDriver
 from src.driver.wifi_driver.esp8266_wifi_driver import Esp8266WifiDriver
 from src.driver.mqtt_driver.mock_mqtt_driver import MockMqttDriver
 from src.driver.mqtt_driver.esp8266_mqtt_driver import Esp8266MQTTDriver
@@ -12,7 +12,7 @@ class DriverManager:
             return Esp8266WifiDriver()
         else:
             print("Loading Mock Wi-Fi driver for macOS")
-            return MockWifiManager()
+            return MockWifiDriver()
     def load_mqtt_driver(self):
         """Load the MQTT driver."""
         if sys.platform == "esp8266":
