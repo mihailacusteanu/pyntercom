@@ -163,7 +163,7 @@ def test_subscribe_to_mqtt_topic_for_opening_door():
     intercom.gpio_driver = mock_gpio_driver
     
     with patch('src.config.UNLOCK_TOPIC', 'test/unlock/topic'):
-        intercom.subscribe_to_subscribe_mqtt_topic_for_openning_door()
+        intercom.subscribe_to_mqtt_topic_for_openning_door()
         
         mock_mqtt_driver.subscribe.assert_called_once_with('test/unlock/topic', intercom._handle_open_door_message)
 
@@ -181,7 +181,7 @@ def test_handle_open_door_message_with_valid_message():
     
     with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
         with patch('src.app.intercom.sleep') as mock_sleep:
-            intercom._handle_open_door_message('unlock_door')
+            intercom._handle_open_door_message('test/unlock', 'unlock_door')
             
             mock_gpio_driver.open_conversation.assert_called_once()
             mock_gpio_driver.unlock.assert_called_once()
@@ -205,7 +205,7 @@ def test_handle_open_door_message_with_invalid_message():
     intercom.gpio_driver = mock_gpio_driver
     
     with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
-        intercom._handle_open_door_message('invalid_message')
+        intercom._handle_open_door_message('test/unlock', 'invalid_message')
         
         mock_gpio_driver.open_conversation.assert_not_called()
         mock_gpio_driver.unlock.assert_not_called()
@@ -226,7 +226,7 @@ def test_handle_open_door_message_gpio_sequence():
     
     with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
         with patch('src.app.intercom.sleep'):
-            intercom._handle_open_door_message('unlock_door')
+            intercom._handle_open_door_message('test/unlock', 'unlock_door')
             
             calls = mock_gpio_driver.method_calls
             expected_sequence = [
@@ -254,7 +254,7 @@ def test_handle_open_door_message_error_handling():
     
     with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
         with pytest.raises(Exception, match="GPIO error"):
-            intercom._handle_open_door_message('unlock_door')
+            intercom._handle_open_door_message('test/unlock', 'unlock_door')
 
 
 @patch('src.config.UNLOCK_TOPIC', 'test/unlock')
@@ -270,12 +270,12 @@ def test_full_door_unlock_workflow():
     intercom.mqtt_driver = mock_mqtt_driver
     intercom.gpio_driver = mock_gpio_driver
     
-    intercom.subscribe_to_subscribe_mqtt_topic_for_openning_door()
+    intercom.subscribe_to_mqtt_topic_for_openning_door()
     
     mock_mqtt_driver.subscribe.assert_called_once_with('test/unlock', intercom._handle_open_door_message)
     
     with patch('src.app.intercom.sleep'):
-        intercom._handle_open_door_message('test_unlock')
+        intercom._handle_open_door_message('test/unlock', 'test_unlock')
         
         mock_gpio_driver.open_conversation.assert_called_once()
         mock_gpio_driver.unlock.assert_called_once()
