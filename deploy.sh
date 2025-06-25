@@ -12,9 +12,8 @@ fi
 
 echo "📡 Device found: $DEVICE"
 
-echo "🧹 Cleaning __pycache__ and .pyc files..."
-find "$SRC" -name '__pycache__' -type d -exec rm -rf {} +
-find "$SRC" -name '*.pyc' -delete
+# Clean cache files
+./clean.sh
 
 echo "🚀 Deploying project to device..."
 
