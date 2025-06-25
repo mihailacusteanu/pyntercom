@@ -26,6 +26,8 @@ CONVERSATION_RELAY_MODE=OUT
 CALL_DETECTED_TOPIC = "pyntercom/intercom/call_detected"
 ALLOW_CONVERSATION_TOPIC = "pyntercom/intercom/allow_conversation"
 UNLOCK_TOPIC = "pyntercom/intercom/unlock"
+CALL_DETECTED_MESSAGE = "call_detected"
+DOOR_UNLOCKED_MESSAGE = "open"
 
 if sys.platform == "esp8266":
     from .esp8266_config import *
