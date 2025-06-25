@@ -15,3 +15,11 @@ def test_intercom_can_load_drivers():
     assert intercom.wifi_driver is not None
     assert intercom.mqtt_driver is not None
     assert intercom.gpio_driver is not None
+    
+def test_intercom_drivers_are_loaded_correctly():
+    intercom = Intercom()
+    intercom._load_drivers()
+    
+    assert intercom.wifi_driver.__class__.__name__ == "MockWifiDriver"
+    assert intercom.mqtt_driver.__class__.__name__ == "MockMqttDriver"
+    assert intercom.gpio_driver.__class__.__name__ == "MockGpioDriver"
