@@ -139,7 +139,7 @@ class Intercom:
         current_time = time.time()
         if current_time - self._last_call_detected_time >= 5:
             print("📞 Call detected! Publishing to MQTT...")
-            self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, "call_detected")
+            self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, config.CALL_DETECTED_MESSAGE)
             self._last_call_detected_time = current_time
     
     def _process_mqtt_messages(self):
@@ -217,7 +217,7 @@ class Intercom:
         implement debouncing logic.
         """
         if self.gpio_driver.detect_call():
-            self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, "call_detected")
+            self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, config.CALL_DETECTED_MESSAGE)
             
     def subscribe_to_mqtt_topic_for_openning_door(self):
         """Subscribe to the door unlock MQTT topic.
