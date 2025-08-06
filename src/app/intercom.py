@@ -49,7 +49,6 @@ class Intercom:
             max_iterations (int): Maximum number of iterations to run in test mode
         """
         print("🚪 Intercom system starting...")
-        self._setup_mqtt_callbacks()
         print("📡 Starting main intercom loop...")
         
         iteration_count = 0
@@ -163,9 +162,6 @@ class Intercom:
     def _reset_connections(self):
         self.is_connected_to_wifi = False
         self.is_connected_to_mqtt = False
-    
-    def _setup_mqtt_callbacks(self):
-        self.subscribe_to_mqtt_topic_for_openning_door()
     
     def _subscribe_to_topics(self):
         self.subscribe_to_mqtt_topic_for_openning_door()
