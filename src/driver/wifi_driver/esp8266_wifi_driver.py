@@ -1,5 +1,5 @@
 from src.interfaces.wifi_driver import WifiDriverInterface
-from src.helper import sleep
+from src.helper.sleep import sleep
 
 
 class Esp8266WifiDriver(WifiDriverInterface):

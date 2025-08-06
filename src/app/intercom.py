@@ -1,6 +1,6 @@
 from src.driver.driver_manager import DriverManager
 import src.config as config
-from src.helper import sleep
+from src.helper.sleep import sleep
 import time
 
 class Intercom:

@@ -31,7 +31,7 @@ def test_esp8266_wifi_driver_can_connect_to_wifi():
     mock_sleep = Mock()
     
     with patch.dict(sys.modules, {'network': mock_network}):
-        with patch("src.helper.sleep", mock_sleep):
+        with patch("src.helper.sleep.sleep", mock_sleep):
             if 'src.driver.wifi_driver.esp8266_wifi_driver' in sys.modules:
                 del sys.modules['src.driver.wifi_driver.esp8266_wifi_driver']
             
@@ -68,7 +68,7 @@ def test_esp8266_wifi_driver_connection_failure():
     mock_sleep = Mock()
     
     with patch.dict(sys.modules, {'network': mock_network}):
-        with patch("src.helper.sleep", mock_sleep):
+        with patch("src.helper.sleep.sleep", mock_sleep):
             if 'src.driver.wifi_driver.esp8266_wifi_driver' in sys.modules:
                 del sys.modules['src.driver.wifi_driver.esp8266_wifi_driver']
             
@@ -104,7 +104,7 @@ def test_esp8266_wifi_driver_already_connected():
     
     mock_network.WLAN = Mock(side_effect=wlan_factory)
     
-    mock_sta_if.isconnected.side_effect = [True, False, True, True]
+    mock_sta_if.isconnected.side_effect = [True, False, False, True, True]
     mock_sta_if.ifconfig.return_value = ("192.168.1.100", "255.255.255.0", "192.168.1.1", "8.8.8.8")
     mock_sta_if.connect.return_value = None
     mock_sta_if.active.return_value = None
@@ -113,7 +113,7 @@ def test_esp8266_wifi_driver_already_connected():
     mock_sleep = Mock()
     
     with patch.dict(sys.modules, {'network': mock_network}):
-        with patch("src.helper.sleep", mock_sleep):
+        with patch("src.helper.sleep.sleep", mock_sleep):
             if 'src.driver.wifi_driver.esp8266_wifi_driver' in sys.modules:
                 del sys.modules['src.driver.wifi_driver.esp8266_wifi_driver']
             
@@ -123,8 +123,11 @@ def test_esp8266_wifi_driver_already_connected():
             result = wifi_driver.connect(ssid="TestSSID", password="TestPassword")
             
             assert result is True
-            mock_sta_if.disconnect.assert_called_once()
+            assert mock_network.WLAN.call_count == 2
+            mock_ap_if.active.assert_called_with(False)
+            mock_sta_if.active.assert_called_with(True)
             mock_sta_if.connect.assert_called_once_with("TestSSID", "TestPassword")
+            mock_sleep.assert_called_with(1)
 
 
 def test_esp8266_wifi_driver_disconnect():
@@ -145,7 +148,7 @@ def test_esp8266_wifi_driver_disconnect():
     mock_sleep = Mock()
     
     with patch.dict(sys.modules, {'network': mock_network}):
-        with patch("src.helper.sleep", mock_sleep):
+        with patch("src.helper.sleep.sleep", mock_sleep):
             if 'src.driver.wifi_driver.esp8266_wifi_driver' in sys.modules:
                 del sys.modules['src.driver.wifi_driver.esp8266_wifi_driver']
             
@@ -208,7 +211,7 @@ def mock_network_success():
     mock_sleep = Mock()
     
     with patch.dict(sys.modules, {'network': mock_network}):
-        with patch("src.helper.sleep", mock_sleep):
+        with patch("src.helper.sleep.sleep", mock_sleep):
             if 'src.driver.wifi_driver.esp8266_wifi_driver' in sys.modules:
                 del sys.modules['src.driver.wifi_driver.esp8266_wifi_driver']
             

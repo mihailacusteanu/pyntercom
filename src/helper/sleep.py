@@ -18,10 +18,17 @@ def sleep(seconds: float, force_real: bool = False) -> None:
     Returns:
         None
     """
-
-    from src.config import MOCK_SLEEP
-
-    if force_real or not MOCK_SLEEP:
-        time.sleep(seconds)
-    else:
+    
+    # Try to import MOCK_SLEEP, but fall back to real sleep if import fails
+    # This handles MicroPython environments where src.config might not be available
+    try:
+        from src.config import MOCK_SLEEP
+        use_mock = MOCK_SLEEP and not force_real
+    except (ImportError, AttributeError):
+        # Fall back to real sleep if config is not available (e.g., on ESP8266)
+        use_mock = False
+    
+    if use_mock:
         print(f"Mock sleep for {seconds} seconds")
+    else:
+        time.sleep(seconds)
