@@ -36,7 +36,7 @@ class Intercom:
         self.wifi_driver = self.driver_manager.load_wifi_driver()
         self.mqtt_driver = self.driver_manager.load_mqtt_driver()
         self.gpio_driver = self.driver_manager.load_gpio_driver()
-        print("Intercom: Drivers loaded successfully")
+        print(f"[{time.time()}] Intercom: Drivers loaded successfully")
         
     def run(self, test_mode: bool = False, max_iterations: int = 3):
         """Start the main intercom control loop.
@@ -49,8 +49,8 @@ class Intercom:
             test_mode (bool): If True, run in test mode for a limited number of iterations
             max_iterations (int): Maximum number of iterations to run in test mode
         """
-        print("🚪 Intercom system starting...")
-        print("📡 Starting main intercom loop...")
+        print(f"[{time.time()}] 🚪 Intercom system starting...")
+        print(f"[{time.time()}] 📡 Starting main intercom loop...")
         
         iteration_count = 0
         
@@ -78,11 +78,11 @@ class Intercom:
                 if test_mode:
                     iteration_count += 1
                     if iteration_count >= max_iterations:
-                        print(f"🧪 Test mode: completed {iteration_count} iterations")
+                        print(f"[{time.time()}] 🧪 Test mode: completed {iteration_count} iterations")
                         break
                         
             except Exception as e:
-                print(f"🚨 Error: {e}")
+                print(f"[{time.time()}] 🚨 Error: {e}")
                 self._reset_connections()
                 if self._should_stop_test(test_mode, iteration_count, max_iterations):
                     break
@@ -99,11 +99,11 @@ class Intercom:
         if self.is_connected_to_wifi:
             return True
             
-        print("📶 WiFi not connected, attempting to connect...")
+        print(f"[{time.time()}] 📶 WiFi not connected, attempting to connect...")
         if self.connect_to_wifi():
             return True
             
-        print("❌ WiFi connection failed, retrying...")
+        print(f"[{time.time()}] ❌ WiFi connection failed, retrying...")
         return False
     
     def _ensure_mqtt_connected(self):
@@ -118,12 +118,12 @@ class Intercom:
         if self.is_connected_to_mqtt:
             return True
             
-        print("🔗 MQTT not connected, attempting to connect...")
+        print(f"[{time.time()}] 🔗 MQTT not connected, attempting to connect...")
         if self.connect_to_mqtt():
             self._subscribe_to_topics()
             return True
             
-        print("❌ MQTT connection failed, retrying...")
+        print(f"[{time.time()}] ❌ MQTT connection failed, retrying...")
         return False
     
     def _process_call_detection(self):
@@ -146,22 +146,22 @@ class Intercom:
         current_time = time.time()
         time_since_last_call = current_time - self._last_call_detected_time
         
-        print(f"🔍 Debug: NEW call detected! Current time: {current_time}, Last call: {self._last_call_detected_time}, Diff: {time_since_last_call}")
-        print("🚀 DEBUG: Using edge detection + 5s debounce (v4.2)")
-        print(f"🔍 Debug condition check: {time_since_last_call} > 5 = {time_since_last_call > 5}")
+        print(f"[{time.time()}] 🔍 Debug: NEW call detected! Current time: {current_time}, Last call: {self._last_call_detected_time}, Diff: {time_since_last_call}")
+        print(f"[{time.time()}] 🚀 DEBUG: Using edge detection + 5s debounce (v4.2)")
+        print(f"[{time.time()}] 🔍 Debug condition check: {time_since_last_call} > 5 = {time_since_last_call > 5}")
         
         # Use 5 second debounce to prevent spam
         if time_since_last_call > 5:
-            print("📞 Call detected! Publishing to MQTT...")
+            print(f"[{time.time()}] 📞 Call detected! Publishing to MQTT...")
             # Ensure MQTT is still connected before publishing
             if self.is_connected_to_mqtt:
                 self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, config.CALL_DETECTED_MESSAGE)
                 self._last_call_detected_time = current_time
-                print(f"✅ Call published, next call allowed after: {current_time + 5}")
+                print(f"[{time.time()}] ✅ Call published, next call allowed after: {current_time + 5}")
             else:
-                print("⚠️ MQTT not connected, cannot publish call detection")
+                print(f"[{time.time()}] ⚠️ MQTT not connected, cannot publish call detection")
         else:
-            print(f"⏰ Call ignored (debounce): {(5 - time_since_last_call):.1f}s remaining")
+            print(f"[{time.time()}] ⏰ Call ignored (debounce): {(5 - time_since_last_call):.1f}s remaining")
     
     def _process_mqtt_messages(self):
         """Process pending MQTT messages.
@@ -173,7 +173,7 @@ class Intercom:
         """
         if hasattr(self.mqtt_driver, 'check_messages'):
             if not self.mqtt_driver.check_messages():
-                print("🔌 MQTT connection lost, reconnecting...")
+                print(f"[{time.time()}] 🔌 MQTT connection lost, reconnecting...")
                 self.is_connected_to_mqtt = False
                 return False
         return True
@@ -265,28 +265,28 @@ class Intercom:
         
         if message == config.DOOR_UNLOCKED_MESSAGE:
             try:
-                print("🔓 Starting door unlock sequence...")
+                print(f"[{time.time()}] 🔓 Starting door unlock sequence...")
                 self.gpio_driver.open_conversation()
                 sleep(1)  
                 self.gpio_driver.unlock()
                 sleep(5)
                 self.gpio_driver.close_conversation()
                 self.gpio_driver.lock()
-                print("✅ Intercom: Door unlock sequence completed successfully")
+                print(f"[{time.time()}] ✅ Intercom: Door unlock sequence completed successfully")
             except Exception as e:
-                print(f"🚨 Error during door unlock sequence: {e}")
+                print(f"[{time.time()}] 🚨 Error during door unlock sequence: {e}")
                 # Attempt to ensure door is locked and conversation closed on error
                 # Try each operation independently for maximum safety
                 try:
                     self.gpio_driver.close_conversation()
-                    print("🔒 Emergency: Conversation closed after error")
+                    print(f"[{time.time()}] 🔒 Emergency: Conversation closed after error")
                 except Exception as close_error:
-                    print(f"🚨 Critical: Failed to close conversation after error: {close_error}")
+                    print(f"[{time.time()}] 🚨 Critical: Failed to close conversation after error: {close_error}")
                 
                 try:
                     self.gpio_driver.lock()
-                    print("🔒 Emergency: Door locked after error")
+                    print(f"[{time.time()}] 🔒 Emergency: Door locked after error")
                 except Exception as lock_error:
-                    print(f"🚨 Critical: Failed to lock door after error: {lock_error}")
+                    print(f"[{time.time()}] 🚨 Critical: Failed to lock door after error: {lock_error}")
         else:
-            print("Intercom: Invalid message for unlocking door")
+            print(f"[{time.time()}] Intercom: Invalid message for unlocking door")

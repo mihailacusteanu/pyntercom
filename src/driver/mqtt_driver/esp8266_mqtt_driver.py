@@ -1,4 +1,5 @@
 from src.interfaces.mqtt_driver import MqttDriverInterface
+import time
 
 class Esp8266MQTTDriver(MqttDriverInterface):
     def __init__(
@@ -29,7 +30,7 @@ class Esp8266MQTTDriver(MqttDriverInterface):
     def connect(self):
         """Connect to the MQTT broker."""
         print(
-            f"Connecting to MQTT broker at {self.server}:{self.port} with client ID {self.client_id}"
+            f"[{time.time()}] Connecting to MQTT broker at {self.server}:{self.port} with client ID {self.client_id}"
         )
 
         try:
@@ -51,35 +52,35 @@ class Esp8266MQTTDriver(MqttDriverInterface):
             self.client.connect()
 
             self.connected = True
-            print(f"✓ Connected to MQTT broker at {self.server}:{self.port}")
+            print(f"[{time.time()}] ✓ Connected to MQTT broker at {self.server}:{self.port}")
 
             for topic in self.subscriptions.keys():
                 self.client.subscribe(topic)
-                print(f"  📡 Re-subscribed to: {topic}")
+                print(f"[{time.time()}]   📡 Re-subscribed to: {topic}")
 
             return True
 
         except ImportError:
-            print("Warning: umqtt module not available (not running on ESP8266)")
+            print(f"[{time.time()}] Warning: umqtt module not available (not running on ESP8266)")
             self.connected = False
             self.client = None
             return False
         except Exception as e:
-            print(f"✗ MQTT connection failed: {e}")
+            print(f"[{time.time()}] ✗ MQTT connection failed: {e}")
             self.connected = False
             self.client = None
             return False
 
     def disconnect(self):
         """Disconnect from the MQTT broker."""
-        print("Disconnecting from MQTT broker")
+        print(f"[{time.time()}] Disconnecting from MQTT broker")
 
         if self.client and self.connected:
             try:
                 self.client.disconnect()
-                print("✓ Disconnected from MQTT broker")
+                print(f"[{time.time()}] ✓ Disconnected from MQTT broker")
             except Exception as e:
-                print(f"Warning: Disconnect error: {e}")
+                print(f"[{time.time()}] Warning: Disconnect error: {e}")
 
         self.connected = False
         self.client = None
@@ -90,12 +91,12 @@ class Esp8266MQTTDriver(MqttDriverInterface):
             raise Exception("Not connected to MQTT broker")
 
         try:
-            print(f"📤 Publishing to '{topic}': {payload}")
+            print(f"[{time.time()}] 📤 Publishing to '{topic}': {payload}")
             self.client.publish(topic, payload, retain=retain)
-            print(f"  ✓ Message published to {topic}")
+            print(f"[{time.time()}]   ✓ Message published to {topic}")
             return True
         except Exception as e:
-            print(f"✗ Publish error: {e}")
+            print(f"[{time.time()}] ✗ Publish error: {e}")
             raise
 
     def subscribe(self, topic: str, callback=None):
@@ -104,16 +105,16 @@ class Esp8266MQTTDriver(MqttDriverInterface):
             raise Exception("Not connected to MQTT broker")
 
         try:
-            print(f"📡 Subscribing to topic '{topic}'")
+            print(f"[{time.time()}] 📡 Subscribing to topic '{topic}'")
 
             self.subscriptions[topic] = callback
 
             self.client.subscribe(topic)
-            print(f"✓ Successfully subscribed to {topic}")
+            print(f"[{time.time()}] ✓ Successfully subscribed to {topic}")
             return True
 
         except Exception as e:
-            print(f"✗ Subscribe error: {e}")
+            print(f"[{time.time()}] ✗ Subscribe error: {e}")
             raise
 
     def unsubscribe(self, topic: str):
@@ -127,11 +128,11 @@ class Esp8266MQTTDriver(MqttDriverInterface):
             if topic in self.subscriptions:
                 del self.subscriptions[topic]
 
-            print(f"✓ Unsubscribed from {topic}")
+            print(f"[{time.time()}] ✓ Unsubscribed from {topic}")
             return True
 
         except Exception as e:
-            print(f"✗ Unsubscribe error: {e}")
+            print(f"[{time.time()}] ✗ Unsubscribe error: {e}")
             raise
 
     def _on_message(self, topic, msg):
@@ -139,13 +140,13 @@ class Esp8266MQTTDriver(MqttDriverInterface):
         topic_str = topic.decode() if isinstance(topic, bytes) else topic
         msg_str = msg.decode() if isinstance(msg, bytes) else msg
 
-        print(f"📨 Received: {topic_str} -> {msg_str}")
+        print(f"[{time.time()}] 📨 Received: {topic_str} -> {msg_str}")
 
         if topic_str in self.subscriptions and self.subscriptions[topic_str]:
             try:
                 self.subscriptions[topic_str](topic_str, msg_str)
             except Exception as e:
-                print(f"Error in message callback for {topic_str}: {e}")
+                print(f"[{time.time()}] Error in message callback for {topic_str}: {e}")
 
     def is_connected(self) -> bool:
         """Check if client is connected to broker"""
@@ -160,7 +161,7 @@ class Esp8266MQTTDriver(MqttDriverInterface):
             self.client.check_msg()
             return True
         except Exception as e:
-            print(f"Error checking messages: {e}")
+            print(f"[{time.time()}] Error checking messages: {e}")
             self.connected = False
             return False
 
@@ -173,7 +174,7 @@ class Esp8266MQTTDriver(MqttDriverInterface):
             self.client.wait_msg()
             return True
         except Exception as e:
-            print(f"Error waiting for message: {e}")
+            print(f"[{time.time()}] Error waiting for message: {e}")
             self.connected = False
             return False
 

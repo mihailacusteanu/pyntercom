@@ -4,6 +4,7 @@ from src.driver.mqtt_driver.mock_mqtt_driver import MockMqttDriver
 from src.driver.mqtt_driver.esp8266_mqtt_driver import Esp8266MQTTDriver
 import src.config as config
 import sys
+import time
 
 class DriverManager:
     """Manages hardware drivers for the intercom system.
@@ -26,10 +27,10 @@ class DriverManager:
             An instance of either Esp8266WifiDriver or MockWifiDriver
         """
         if sys.platform == "esp8266":
-            print("Loading ESP8266 Wi-Fi driver")
+            print(f"[{time.time()}] Loading ESP8266 Wi-Fi driver")
             return Esp8266WifiDriver()
         else:
-            print("Loading Mock Wi-Fi driver for macOS")
+            print(f"[{time.time()}] Loading Mock Wi-Fi driver for macOS")
             return MockWifiDriver()
     def load_mqtt_driver(self):
         """Load the appropriate MQTT driver based on the platform.
@@ -43,7 +44,7 @@ class DriverManager:
             An instance of either Esp8266MQTTDriver or MockMqttDriver
         """
         if sys.platform == "esp8266":
-            print("Loading ESP8266 MQTT driver")
+            print(f"[{time.time()}] Loading ESP8266 MQTT driver")
             return Esp8266MQTTDriver(client_id=config.MQTT_CLIENT_ID,
                                       server=config.MQTT_SERVER,
                                       port=1883,
@@ -53,7 +54,7 @@ class DriverManager:
                                       mqtt_username=config.MQTT_USERNAME,
                                       mqtt_password=config.MQTT_PASSWORD)
         else:
-            print("Loading Mock MQTT driver for macOS")
+            print(f"[{time.time()}] Loading Mock MQTT driver for macOS")
             return MockMqttDriver()
     def load_gpio_driver(self):
         """Load the appropriate GPIO driver based on the platform.
@@ -69,11 +70,11 @@ class DriverManager:
             An instance of either ESP8266GPIODriver or MockGpioDriver
         """
         if sys.platform == "esp8266":
-            print("Loading ESP8266 GPIO driver")
+            print(f"[{time.time()}] Loading ESP8266 GPIO driver")
             from src.driver.gpio_driver.esp8266_gpio_driver import ESP8266GPIODriver
             return ESP8266GPIODriver()
         else:
             from src.driver.gpio_driver.mock_gpio_driver import MockGpioDriver
-            print("Loading Mock GPIO driver for macOS")
+            print(f"[{time.time()}] Loading Mock GPIO driver for macOS")
             return MockGpioDriver()
         
