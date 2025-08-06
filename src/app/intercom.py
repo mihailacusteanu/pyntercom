@@ -138,8 +138,12 @@ class Intercom:
         current_time = time.time()
         if current_time - self._last_call_detected_time >= 5:
             print("📞 Call detected! Publishing to MQTT...")
-            self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, config.CALL_DETECTED_MESSAGE)
-            self._last_call_detected_time = current_time
+            # Ensure MQTT is still connected before publishing
+            if self.is_connected_to_mqtt:
+                self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, config.CALL_DETECTED_MESSAGE)
+                self._last_call_detected_time = current_time
+            else:
+                print("⚠️ MQTT not connected, cannot publish call detection")
     
     def _process_mqtt_messages(self):
         """Process pending MQTT messages.
@@ -164,7 +168,7 @@ class Intercom:
         self.is_connected_to_mqtt = False
     
     def _subscribe_to_topics(self):
-        self.subscribe_to_mqtt_topic_for_openning_door()
+        self.subscribe_to_mqtt_topic_for_opening_door()
     
     def connect_to_wifi(self):
         """Connect to WiFi network using configured credentials.
@@ -215,7 +219,7 @@ class Intercom:
         if self.gpio_driver.detect_call():
             self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, config.CALL_DETECTED_MESSAGE)
             
-    def subscribe_to_mqtt_topic_for_openning_door(self):
+    def subscribe_to_mqtt_topic_for_opening_door(self):
         """Subscribe to the door unlock MQTT topic.
         
         Sets up subscription to the door unlock topic and configures the
@@ -227,7 +231,7 @@ class Intercom:
         """Handle door unlock messages from MQTT.
         
         Processes incoming MQTT messages for door unlocking. When a valid unlock
-        message is received, executes the door unlock sequence:
+        message is received, executes the door unlock sequence with error handling:
         1. Open intercom conversation
         2. Brief pause
         3. Unlock door
@@ -239,12 +243,29 @@ class Intercom:
             message (str): The message payload
         """
         if message == config.DOOR_UNLOCKED_MESSAGE:
-            self.gpio_driver.open_conversation()
-            sleep(1)  
-            self.gpio_driver.unlock()
-            sleep(5)
-            self.gpio_driver.close_conversation()
-            self.gpio_driver.lock()
-            print("Intercom: Door unlocked")
+            try:
+                print("🔓 Starting door unlock sequence...")
+                self.gpio_driver.open_conversation()
+                sleep(1)  
+                self.gpio_driver.unlock()
+                sleep(5)
+                self.gpio_driver.close_conversation()
+                self.gpio_driver.lock()
+                print("✅ Intercom: Door unlock sequence completed successfully")
+            except Exception as e:
+                print(f"🚨 Error during door unlock sequence: {e}")
+                # Attempt to ensure door is locked and conversation closed on error
+                # Try each operation independently for maximum safety
+                try:
+                    self.gpio_driver.close_conversation()
+                    print("🔒 Emergency: Conversation closed after error")
+                except Exception as close_error:
+                    print(f"🚨 Critical: Failed to close conversation after error: {close_error}")
+                
+                try:
+                    self.gpio_driver.lock()
+                    print("🔒 Emergency: Door locked after error")
+                except Exception as lock_error:
+                    print(f"🚨 Critical: Failed to lock door after error: {lock_error}")
         else:
             print("Intercom: Invalid message for unlocking door")

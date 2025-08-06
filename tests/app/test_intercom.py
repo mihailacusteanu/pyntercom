@@ -163,7 +163,7 @@ def test_subscribe_to_mqtt_topic_for_opening_door():
     intercom.gpio_driver = mock_gpio_driver
     
     with patch('src.config.UNLOCK_TOPIC', 'test/unlock/topic'):
-        intercom.subscribe_to_mqtt_topic_for_openning_door()
+        intercom.subscribe_to_mqtt_topic_for_opening_door()
         
         mock_mqtt_driver.subscribe.assert_called_once_with('test/unlock/topic', intercom._handle_open_door_message)
 
@@ -253,8 +253,43 @@ def test_handle_open_door_message_error_handling():
     intercom.gpio_driver = mock_gpio_driver
     
     with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
-        with pytest.raises(Exception, match="GPIO error"):
-            intercom._handle_open_door_message('test/unlock', 'unlock_door')
+        # Should not raise exception due to error handling
+        intercom._handle_open_door_message('test/unlock', 'unlock_door')
+        
+        # Verify that emergency cleanup was called
+        mock_gpio_driver.open_conversation.assert_called_once()
+        mock_gpio_driver.close_conversation.assert_called_once()
+        mock_gpio_driver.lock.assert_called_once()
+        
+        # unlock should not have been called due to early failure
+        mock_gpio_driver.unlock.assert_not_called()
+
+
+def test_handle_open_door_message_error_handling_cleanup_failure():
+    """Test error handling when both the main sequence and emergency cleanup fail."""
+    intercom = Intercom()
+    
+    mock_wifi_driver = Mock()
+    mock_mqtt_driver = Mock()
+    mock_gpio_driver = Mock()
+    
+    # Simulate failure in main sequence
+    mock_gpio_driver.open_conversation.side_effect = Exception("GPIO error")
+    # Simulate failure in emergency cleanup - close_conversation fails but lock succeeds
+    mock_gpio_driver.close_conversation.side_effect = Exception("Cleanup error")
+    
+    intercom.wifi_driver = mock_wifi_driver
+    intercom.mqtt_driver = mock_mqtt_driver
+    intercom.gpio_driver = mock_gpio_driver
+    
+    with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
+        # Should not raise exception even when cleanup fails
+        intercom._handle_open_door_message('test/unlock', 'unlock_door')
+        
+        # Verify that emergency cleanup was attempted for both operations
+        mock_gpio_driver.open_conversation.assert_called_once()
+        mock_gpio_driver.close_conversation.assert_called_once()
+        mock_gpio_driver.lock.assert_called_once()  # Should still be called even if close fails
 
 
 @patch('src.config.UNLOCK_TOPIC', 'test/unlock')
@@ -270,7 +305,7 @@ def test_full_door_unlock_workflow():
     intercom.mqtt_driver = mock_mqtt_driver
     intercom.gpio_driver = mock_gpio_driver
     
-    intercom.subscribe_to_mqtt_topic_for_openning_door()
+    intercom.subscribe_to_mqtt_topic_for_opening_door()
     
     mock_mqtt_driver.subscribe.assert_called_once_with('test/unlock', intercom._handle_open_door_message)
     
