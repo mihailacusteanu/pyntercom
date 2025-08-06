@@ -9,9 +9,9 @@ class ESP8266GPIODriver(GPIODriverInterface):
         # define the configuration for GPIO pins
         import src.config as config
         self.detect_call_pin = Pin(config.CALL_DETECTOR_PIN, 
-                                    mode=config.CALL_DETECTOR_MODE, 
-                                    pull=config.CALL_DETECTOR_DEFAULT_VALUE)
-        print(f"ESP8266GPIODriver: Initialized GPIO {config.CALL_DETECTOR_PIN} in mode {config.CALL_DETECTOR_MODE}")
+                                    mode=config.CALL_DETECTOR_MODE,
+                                    pull=Pin.PULL_UP)
+        print(f"ESP8266GPIODriver: Initialized GPIO {config.CALL_DETECTOR_PIN} in mode {config.CALL_DETECTOR_MODE} with internal pull-up")
         
         self.conversation_pin = Pin(config.CONVERSATION_RELAY_PIN,
                                           mode=config.CONVERSATION_RELAY_MODE,

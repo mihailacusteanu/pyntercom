@@ -29,6 +29,7 @@ class Intercom:
         self.is_connected_to_wifi = False
         self.is_connected_to_mqtt = False
         self._last_call_detected_time = 0
+        self._previous_call_state = False  # Track previous call detection state
         
     def _load_drivers(self):
         """Load all drivers needed for the intercom system."""
@@ -126,24 +127,41 @@ class Intercom:
         return False
     
     def _process_call_detection(self):
-        """Process intercom call detection.
+        """Process intercom call detection with edge detection.
         
-        Checks if a call is detected and publishes an MQTT message if so.
-        Includes debouncing logic to prevent multiple messages for the same call
-        (requires at least 5 seconds between call announcements).
+        Only triggers on the transition from 'no call' to 'call detected' to prevent
+        continuous triggering during a single call event.
+        Includes debouncing logic to prevent multiple messages for the same call.
         """
-        if not self.detect_call():
+        current_call_detected = self.detect_call()
+        
+        # Only process if this is a NEW call detection (edge detection)
+        if not current_call_detected or current_call_detected == self._previous_call_state:
+            self._previous_call_state = current_call_detected
             return
-            
+        
+        # This is a rising edge: False -> True
+        self._previous_call_state = current_call_detected
+        
         current_time = time.time()
-        if current_time - self._last_call_detected_time >= 5:
+        time_since_last_call = current_time - self._last_call_detected_time
+        
+        print(f"🔍 Debug: NEW call detected! Current time: {current_time}, Last call: {self._last_call_detected_time}, Diff: {time_since_last_call}")
+        print("🚀 DEBUG: Using edge detection + 5s debounce (v4.2)")
+        print(f"🔍 Debug condition check: {time_since_last_call} > 5 = {time_since_last_call > 5}")
+        
+        # Use 5 second debounce to prevent spam
+        if time_since_last_call > 5:
             print("📞 Call detected! Publishing to MQTT...")
             # Ensure MQTT is still connected before publishing
             if self.is_connected_to_mqtt:
                 self.mqtt_driver.publish(config.CALL_DETECTED_TOPIC, config.CALL_DETECTED_MESSAGE)
                 self._last_call_detected_time = current_time
+                print(f"✅ Call published, next call allowed after: {current_time + 5}")
             else:
                 print("⚠️ MQTT not connected, cannot publish call detection")
+        else:
+            print(f"⏰ Call ignored (debounce): {(5 - time_since_last_call):.1f}s remaining")
     
     def _process_mqtt_messages(self):
         """Process pending MQTT messages.
@@ -242,6 +260,9 @@ class Intercom:
             topic (str): The MQTT topic the message was received on
             message (str): The message payload
         """
+        print(f"🔍 Debug: Received MQTT message on '{topic}': '{message}' (expected: '{config.DOOR_UNLOCKED_MESSAGE}')")
+        print(f"📊 Debug: Message received at time: {time.time()}")
+        
         if message == config.DOOR_UNLOCKED_MESSAGE:
             try:
                 print("🔓 Starting door unlock sequence...")
