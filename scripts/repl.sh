@@ -10,7 +10,7 @@ fi
 
 echo "📡 ESP8266 device found: $DEVICE"
 echo "🔌 Connecting to REPL..."
-echo "💡 Use Ctrl-] to exit REPL"
+echo "💡 Use `Ctrl` + `]` to exit REPL"
 echo ""
 
 mpremote connect "$DEVICE" repl
