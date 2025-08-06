@@ -24,7 +24,7 @@ class ESP8266GPIODriver(GPIODriverInterface):
         print(f"ESP8266GPIODriver: Initialized GPIO {config.DOOR_RELAY_PIN} in mode {config.DOOR_RELAY_MODE}")
 
     def detect_call(self) -> bool:
-        call_detected = self.detect_call_pin.value() == 1
+        call_detected = self.detect_call_pin.value() == 0  # Active-low: 0 = call detected (grounded)
         print(f"ESP8266GPIODriver: Call detected: {call_detected} (GPIO {self.detect_call_pin})")
         return call_detected
 

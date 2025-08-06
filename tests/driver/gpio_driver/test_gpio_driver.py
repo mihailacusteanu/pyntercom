@@ -93,8 +93,8 @@ def _mock_pin(monkeypatch):
 
 
 def _simulate_call_detected(gpio_driver):
-    gpio_driver.detect_call_pin._val = 1  # Match current driver logic: 1 = call detected
+    gpio_driver.detect_call_pin._val = 0  # Active-low: 0 = call detected (grounded)
 
 
 def _simulate_no_call_detected(gpio_driver):
-    gpio_driver.detect_call_pin._val = 0  # Match current driver logic: 0 = no call
+    gpio_driver.detect_call_pin._val = 1  # Active-low: 1 = no call (pull-up resistor)
