@@ -2,7 +2,7 @@ from src.driver.wifi_driver.mock_wifi_driver import MockWifiDriver
 from src.driver.wifi_driver.esp8266_wifi_driver import Esp8266WifiDriver
 from src.driver.mqtt_driver.mock_mqtt_driver import MockMqttDriver
 from src.driver.mqtt_driver.esp8266_mqtt_driver import Esp8266MQTTDriver
-
+import src.config as config
 import sys
 
 class DriverManager:
@@ -44,14 +44,14 @@ class DriverManager:
         """
         if sys.platform == "esp8266":
             print("Loading ESP8266 MQTT driver")
-            return Esp8266MQTTDriver(client_id="esp8266_client",
-                                      server="mqtt.example.com",
+            return Esp8266MQTTDriver(client_id=config.MQTT_CLIENT_ID,
+                                      server=config.MQTT_SERVER,
                                       port=1883,
                                       call_detected_topic="call/detected",
                                       allow_conversation_topic="conversation/allow",
                                       unlock_topic="device/unlock",
-                                      mqtt_username="user",
-                                      mqtt_password="password")
+                                      mqtt_username=config.MQTT_USERNAME,
+                                      mqtt_password=config.MQTT_PASSWORD)
         else:
             print("Loading Mock MQTT driver for macOS")
             return MockMqttDriver()
