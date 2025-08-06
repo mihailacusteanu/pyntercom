@@ -1,7 +1,7 @@
 import sys
 
 
-MOCK_SLEEP = True
+MOCK_SLEEP = False
 
 
 IN = 0
