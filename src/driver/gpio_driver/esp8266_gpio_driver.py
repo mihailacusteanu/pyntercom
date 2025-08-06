@@ -24,8 +24,28 @@ class ESP8266GPIODriver(GPIODriverInterface):
         print(f"ESP8266GPIODriver: Initialized GPIO {config.DOOR_RELAY_PIN} in mode {config.DOOR_RELAY_MODE}")
 
     def detect_call(self) -> bool:
-        call_detected = self.detect_call_pin.value() == 0  # Active-low: 0 = call detected (grounded)
-        print(f"ESP8266GPIODriver: Call detected: {call_detected} (GPIO {self.detect_call_pin})")
+        # Take multiple readings to filter out voltage threshold instability
+        readings = []
+        for _ in range(5):  # Take 5 quick readings
+            readings.append(self.detect_call_pin.value())
+            # Small delay to let voltage stabilize
+            import time
+            time.sleep_ms(2)
+        
+        # Count LOW readings (should be 0 for true button press)
+        low_count = readings.count(0)
+        
+        # Only consider it a real call if MAJORITY of readings are LOW
+        # This filters out borderline voltage threshold issues
+        call_detected = low_count >= 3  # At least 3 out of 5 readings must be LOW
+        
+        # Only log when there's a clear call detection to reduce spam
+        if call_detected:
+            print(f"ESP8266GPIODriver: VERIFIED call detected - {low_count}/5 readings LOW (GPIO {self.detect_call_pin})")
+        elif low_count > 0:
+            # Log borderline cases that were filtered out
+            print(f"ESP8266GPIODriver: FILTERED false trigger - only {low_count}/5 readings LOW (voltage threshold issue)")
+        
         return call_detected
 
     def open_conversation(self) -> None:
