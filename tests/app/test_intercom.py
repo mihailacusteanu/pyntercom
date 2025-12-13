@@ -1,318 +1,494 @@
 import pytest
 from unittest.mock import Mock, patch
 from src.app.intercom import Intercom
-from src.config.core import CALL_DETECTED_TOPIC, CALL_DETECTED_MESSAGE
+
+import threading
+import time
+import sys
 
 
-def test_can_instantiate_intercom():
+# Test 1: Basic loop execution with stop
+def test_run_can_be_stopped():
     intercom = Intercom()
-    assert intercom is not None
+
+    # Make _process_cycle stop after first call
+    call_count = 0
+    def mock_cycle():
+        nonlocal call_count
+        call_count += 1
+        intercom.stop()
+
+    intercom._process_cycle = mock_cycle
+    intercom.run()
+
+    # If we get here, it didn't hang
+    assert call_count == 1
 
 
-def test_when_creating_an_instance_it_also_instantiates_the_driver_manager():
+# Test 2: Loop calls _process_cycle each iteration
+def test_run_calls_process_cycle_each_iteration():
     intercom = Intercom()
-    assert intercom.driver_manager is not None
+
+    call_count = 0
+    def mock_cycle():
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 3:
+            intercom.stop()
+
+    intercom._process_cycle = mock_cycle
+    intercom.run()
+
+    assert call_count == 3
 
 
-def test_intercom_can_load_drivers():
+# Test 3: Loop runs continuously in thread
+def test_run_continues_until_stopped():
     intercom = Intercom()
-    intercom._load_drivers()
-    assert intercom.wifi_driver is not None
-    assert intercom.mqtt_driver is not None
-    assert intercom.gpio_driver is not None
+
+    thread = threading.Thread(target=intercom.run)
+    thread.daemon = True
+    thread.start()
+
+    time.sleep(0.01)  # Brief moment
+    assert thread.is_alive()
+
+    intercom.stop()
+    thread.join(timeout=1)
+
+    assert not thread.is_alive()
 
 
-def test_intercom_drivers_are_loaded_correctly():
+# Test 4: Track start time when run begins
+def test_run_tracks_start_time():
     intercom = Intercom()
-    intercom._load_drivers()
-    
-    assert intercom.wifi_driver.__class__.__name__ == "MockWifiDriver"
-    assert intercom.mqtt_driver.__class__.__name__ == "MockMqttDriver"
-    assert intercom.gpio_driver.__class__.__name__ == "MockGpioDriver"
+
+    # Make _process_cycle stop immediately
+    def mock_cycle():
+        intercom.stop()
+
+    intercom._process_cycle = mock_cycle
+
+    with patch('time.time', return_value=1000.0):
+        intercom.run()
+
+    assert intercom.start_time == 1000.0
 
 
-def test_when_detecting_call_should_send_message_to_mqtt():
+# Test 5: should_restart returns False when start_time is None
+def test_should_restart_returns_false_when_not_started():
+    intercom = Intercom(restart_after_seconds=10)
+
+    assert intercom._should_restart() == False
+
+
+# Test 6: should_restart returns True when uptime exceeds threshold
+def test_should_restart_returns_true_when_uptime_exceeds_threshold():
+    intercom = Intercom(restart_after_seconds=10)
+
+    with patch('time.time', return_value=1000.0):
+        intercom.start_time = 1000.0
+
+    # 15 seconds later - should restart
+    with patch('time.time', return_value=1015.0):
+        assert intercom._should_restart() == True
+
+
+# Test 7: should_restart returns False when uptime below threshold
+def test_should_restart_returns_false_when_uptime_below_threshold():
+    intercom = Intercom(restart_after_seconds=10)
+
+    with patch('time.time', return_value=1000.0):
+        intercom.start_time = 1000.0
+
+    # 5 seconds later - should NOT restart
+    with patch('time.time', return_value=1005.0):
+        assert intercom._should_restart() == False
+
+
+# Test 8: Loop stops when restart threshold is reached
+def test_run_stops_when_restart_threshold_reached():
+    intercom = Intercom(restart_after_seconds=10)
+
+    call_count = 0
+    time_values = [1000.0, 1005.0, 1015.0]  # Start, middle, exceed threshold
+
+    def mock_time():
+        return time_values[min(call_count, len(time_values) - 1)]
+
+    def mock_cycle():
+        nonlocal call_count
+        call_count += 1
+
+    intercom._process_cycle = mock_cycle
+
+    with patch('time.time', side_effect=mock_time):
+        intercom.run()
+
+    # Should have stopped after threshold exceeded
+    assert call_count == 2  # Ran twice, then stopped
+
+
+# Test 9: Calls machine.reset() when threshold reached
+def test_run_calls_machine_reset_when_threshold_reached():
+    intercom = Intercom(restart_after_seconds=10)
+
+    call_count = 0
+    time_values = [1000.0, 1015.0]  # Start, then exceed threshold
+
+    def mock_time():
+        return time_values[min(call_count, len(time_values) - 1)]
+
+    def mock_cycle():
+        nonlocal call_count
+        call_count += 1
+
+    intercom._process_cycle = mock_cycle
+
+    # Mock machine module before it's imported
+    mock_machine = Mock()
+    with patch('time.time', side_effect=mock_time):
+        with patch.dict('sys.modules', {'machine': mock_machine}):
+            intercom.run()
+
+            mock_machine.reset.assert_called_once()
+
+
+# Test 10: Restart immediately when restart_after_seconds is 0
+def test_run_restarts_immediately_when_threshold_is_zero():
+    intercom = Intercom(restart_after_seconds=0)
+
+    call_count = 0
+    def mock_cycle():
+        nonlocal call_count
+        call_count += 1
+
+    intercom._process_cycle = mock_cycle
+
+    # Mock machine module before it's imported
+    mock_machine = Mock()
+    with patch('time.time', return_value=1000.0):
+        with patch.dict('sys.modules', {'machine': mock_machine}):
+            intercom.run()
+
+            # Should reset before even calling _process_cycle
+            assert call_count == 0
+            mock_machine.reset.assert_called_once()
+
+
+# Test 11: Handles ImportError when machine module not available
+def test_restart_handles_import_error_gracefully():
+    intercom = Intercom(restart_after_seconds=10)
+
+    with patch('time.time', return_value=1000.0):
+        intercom.start_time = 1000.0
+
+    with patch('time.time', return_value=1015.0):
+        # Mock ImportError for machine module
+        with patch('builtins.__import__', side_effect=ImportError):
+            intercom._restart()
+
+            # Should have called stop() instead of crashing
+            assert intercom.running == False
+
+
+# Test 12: Default restart_after_seconds is 2 days
+def test_default_restart_after_seconds_is_two_days():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    mock_gpio_driver.detect_call.return_value = True
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    intercom.detect_call_and_send_message()
-    
-    mock_gpio_driver.detect_call.assert_called_once()
-    mock_mqtt_driver.publish.assert_called_once_with(CALL_DETECTED_TOPIC, CALL_DETECTED_MESSAGE)
+
+    assert intercom.restart_after_seconds == 172800  # 2 days in seconds
 
 
-def test_when_no_call_detected_should_not_send_message_to_mqtt():
+# ========== CALL DETECTION TESTS ==========
+
+# Test 13: Call detection ignores when no call detected
+def test_process_call_detection_ignores_no_call():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    mock_gpio_driver.detect_call.return_value = False
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    intercom.detect_call_and_send_message()
-    
-    mock_gpio_driver.detect_call.assert_called_once()
-    mock_mqtt_driver.publish.assert_not_called()
+    intercom.gpio_driver.detect_call = Mock(return_value=False)
+    intercom.mqtt_driver.is_connected = Mock(return_value=True)
+    intercom.mqtt_driver.publish = Mock()
+
+    with patch('time.time', return_value=1000.0):
+        intercom._process_call_detection()
+
+    # Should not publish anything
+    intercom.mqtt_driver.publish.assert_not_called()
 
 
-@patch('src.config.CALL_DETECTED_TOPIC', 'test/call/detected')
-def test_mqtt_message_uses_correct_topic_from_config():
+# Test 14: Call detection only triggers on rising edge (False -> True)
+def test_process_call_detection_edge_detection():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    mock_gpio_driver.detect_call.return_value = True
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    intercom.detect_call_and_send_message()
-    
-    mock_mqtt_driver.publish.assert_called_once_with("test/call/detected", "call_detected")
+    intercom.mqtt_driver.is_connected = Mock(return_value=True)
+    intercom.mqtt_driver.publish = Mock()
+
+    # First call: False (no call)
+    intercom.gpio_driver.detect_call = Mock(return_value=False)
+    with patch('time.time', return_value=1000.0):
+        intercom._process_call_detection()
+
+    # Second call: True (call detected) - should trigger
+    intercom.gpio_driver.detect_call = Mock(return_value=True)
+    with patch('time.time', return_value=1001.0):
+        intercom._process_call_detection()
+
+    # Third call: Still True (holding) - should NOT trigger again
+    intercom.gpio_driver.detect_call = Mock(return_value=True)
+    with patch('time.time', return_value=1002.0):
+        intercom._process_call_detection()
+
+    # Should only publish once (on the rising edge)
+    assert intercom.mqtt_driver.publish.call_count == 1
 
 
-def test_intercom_with_driver_manager_mocking():
-    with patch('src.app.intercom.DriverManager') as mock_driver_manager_class:
-        mock_wifi_driver = Mock()
-        mock_mqtt_driver = Mock()
-        mock_gpio_driver = Mock()
-        
-        mock_driver_manager = Mock()
-        mock_driver_manager.load_wifi_driver.return_value = mock_wifi_driver
-        mock_driver_manager.load_mqtt_driver.return_value = mock_mqtt_driver
-        mock_driver_manager.load_gpio_driver.return_value = mock_gpio_driver
-        
-        mock_driver_manager_class.return_value = mock_driver_manager
-        
-        mock_gpio_driver.detect_call.return_value = True
-        
-        intercom = Intercom()
-        
-        mock_driver_manager_class.assert_called_once()
-        mock_driver_manager.load_wifi_driver.assert_called_once()
-        mock_driver_manager.load_mqtt_driver.assert_called_once()
-        mock_driver_manager.load_gpio_driver.assert_called_once()
-        
-        intercom.detect_call_and_send_message()
-        
-        mock_gpio_driver.detect_call.assert_called_once()
-        mock_mqtt_driver.publish.assert_called_once()
-
-
-def test_intercom_error_handling_when_gpio_driver_fails():
+# Test 15: Call detection debouncing prevents rapid calls
+def test_process_call_detection_debouncing():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    mock_gpio_driver.detect_call.side_effect = Exception("GPIO error")
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    with pytest.raises(Exception, match="GPIO error"):
-        intercom.detect_call_and_send_message()
+    intercom.mqtt_driver.is_connected = Mock(return_value=True)
+    intercom.mqtt_driver.publish = Mock()
+
+    # Patch config to use 10 second debounce
+    with patch('src.config.CALL_DEBOUNCE_SECONDS', 10):
+        # First call at T=1000
+        intercom.gpio_driver.detect_call = Mock(return_value=False)
+        with patch('time.time', return_value=1000.0):
+            intercom._process_call_detection()
+
+        intercom.gpio_driver.detect_call = Mock(return_value=True)
+        with patch('time.time', return_value=1001.0):
+            intercom._process_call_detection()
+
+        # Reset to False then True again (new call attempt at T=1005 - only 4 seconds later)
+        intercom._previous_call_state = False
+        intercom.gpio_driver.detect_call = Mock(return_value=True)
+        with patch('time.time', return_value=1005.0):
+            intercom._process_call_detection()
+
+        # Should only publish once (second call was within debounce period)
+        assert intercom.mqtt_driver.publish.call_count == 1
 
 
-def test_intercom_error_handling_when_mqtt_driver_fails():
+# Test 16: Call detection publishes after debounce period expires
+def test_process_call_detection_publishes_after_debounce():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    mock_gpio_driver.detect_call.return_value = True
-    mock_mqtt_driver.publish.side_effect = Exception("MQTT error")
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    with pytest.raises(Exception, match="MQTT error"):
-        intercom.detect_call_and_send_message()
+    intercom.mqtt_driver.is_connected = Mock(return_value=True)
+    intercom.mqtt_driver.publish = Mock()
+
+    with patch('src.config.CALL_DEBOUNCE_SECONDS', 10):
+        # First call at T=1000
+        intercom.gpio_driver.detect_call = Mock(return_value=False)
+        with patch('time.time', return_value=1000.0):
+            intercom._process_call_detection()
+
+        intercom.gpio_driver.detect_call = Mock(return_value=True)
+        with patch('time.time', return_value=1001.0):
+            intercom._process_call_detection()
+
+        # Reset to False then True again (new call at T=1012 - 11 seconds later, past debounce)
+        intercom._previous_call_state = False
+        intercom.gpio_driver.detect_call = Mock(return_value=True)
+        with patch('time.time', return_value=1012.0):
+            intercom._process_call_detection()
+
+        # Should publish twice (second call was after debounce period)
+        assert intercom.mqtt_driver.publish.call_count == 2
 
 
-def test_subscribe_to_mqtt_topic_for_opening_door():
+# ========== AUTO-UNLOCK TESTS ==========
+
+# Test 17: Auto-unlock executes when enabled and call detected
+def test_auto_unlock_executes_when_enabled():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    with patch('src.config.UNLOCK_TOPIC', 'test/unlock/topic'):
-        intercom.subscribe_to_mqtt_topic_for_opening_door()
-        
-        mock_mqtt_driver.subscribe.assert_called_once_with('test/unlock/topic', intercom._handle_open_door_message)
+    intercom.auto_unlock = True
+    intercom.mqtt_driver.is_connected = Mock(return_value=True)
+    intercom.mqtt_driver.publish = Mock()
+    intercom._execute_unlock_sequence = Mock()
+
+    with patch('src.config.CALL_DEBOUNCE_SECONDS', 10):
+        # Trigger call detection
+        intercom.gpio_driver.detect_call = Mock(return_value=False)
+        with patch('time.time', return_value=1000.0):
+            intercom._process_call_detection()
+
+        intercom.gpio_driver.detect_call = Mock(return_value=True)
+        with patch('time.time', return_value=1001.0):
+            intercom._process_call_detection()
+
+    # Should have executed unlock sequence
+    intercom._execute_unlock_sequence.assert_called_once()
 
 
-def test_handle_open_door_message_with_valid_message():
+# Test 18: Auto-unlock does not execute when disabled
+def test_auto_unlock_does_not_execute_when_disabled():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
-        with patch('src.app.intercom.sleep') as mock_sleep:
-            intercom._handle_open_door_message('test/unlock', 'unlock_door')
-            
-            mock_gpio_driver.open_conversation.assert_called_once()
-            mock_gpio_driver.unlock.assert_called_once()
-            mock_gpio_driver.close_conversation.assert_called_once()
-            mock_gpio_driver.lock.assert_called_once()
-            
-            assert mock_sleep.call_count == 2
-            mock_sleep.assert_any_call(1)
-            mock_sleep.assert_any_call(5)
+    intercom.auto_unlock = False  # Explicitly disabled
+    intercom.mqtt_driver.is_connected = Mock(return_value=True)
+    intercom.mqtt_driver.publish = Mock()
+    intercom._execute_unlock_sequence = Mock()
+
+    with patch('src.config.CALL_DEBOUNCE_SECONDS', 10):
+        # Trigger call detection
+        intercom.gpio_driver.detect_call = Mock(return_value=False)
+        with patch('time.time', return_value=1000.0):
+            intercom._process_call_detection()
+
+        intercom.gpio_driver.detect_call = Mock(return_value=True)
+        with patch('time.time', return_value=1001.0):
+            intercom._process_call_detection()
+
+    # Should NOT have executed unlock sequence
+    intercom._execute_unlock_sequence.assert_not_called()
 
 
-def test_handle_open_door_message_with_invalid_message():
+# Test 19: Unlock sequence executes correct GPIO operations
+def test_unlock_sequence_executes_gpio_operations():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
-        intercom._handle_open_door_message('test/unlock', 'invalid_message')
-        
-        mock_gpio_driver.open_conversation.assert_not_called()
-        mock_gpio_driver.unlock.assert_not_called()
-        mock_gpio_driver.close_conversation.assert_not_called()
-        mock_gpio_driver.lock.assert_not_called()
+    intercom.gpio_driver.open_conversation = Mock()
+    intercom.gpio_driver.unlock = Mock()
+    intercom.gpio_driver.close_conversation = Mock()
+    intercom.gpio_driver.lock = Mock()
+
+    with patch('src.helper.sleep.sleep'):  # Mock sleep to speed up test
+        intercom._execute_unlock_sequence()
+
+    # Verify sequence
+    intercom.gpio_driver.open_conversation.assert_called_once()
+    intercom.gpio_driver.unlock.assert_called_once()
+    intercom.gpio_driver.close_conversation.assert_called_once()
+    intercom.gpio_driver.lock.assert_called_once()
 
 
-def test_handle_open_door_message_gpio_sequence():
+# Test 20: Unlock sequence handles exceptions and locks door
+def test_unlock_sequence_handles_exception_and_locks_door():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
-        with patch('src.app.intercom.sleep'):
-            intercom._handle_open_door_message('test/unlock', 'unlock_door')
-            
-            calls = mock_gpio_driver.method_calls
-            expected_sequence = [
-                ('open_conversation', (), {}),
-                ('unlock', (), {}),
-                ('close_conversation', (), {}),
-                ('lock', (), {})
-            ]
-            
-            assert calls == expected_sequence
+    intercom.gpio_driver.open_conversation = Mock()
+    intercom.gpio_driver.unlock = Mock(side_effect=Exception("GPIO error"))
+    intercom.gpio_driver.close_conversation = Mock()
+    intercom.gpio_driver.lock = Mock()
+
+    with patch('src.helper.sleep.sleep'):
+        intercom._execute_unlock_sequence()
+
+    # Should attempt to lock even after error
+    intercom.gpio_driver.close_conversation.assert_called_once()
+    intercom.gpio_driver.lock.assert_called_once()
 
 
-def test_handle_open_door_message_error_handling():
+# ========== MANUAL UNLOCK TESTS ==========
+
+# Test 21: Manual unlock message triggers unlock sequence
+def test_manual_unlock_message_triggers_unlock():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    mock_gpio_driver.open_conversation.side_effect = Exception("GPIO error")
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
-        # Should not raise exception due to error handling
-        intercom._handle_open_door_message('test/unlock', 'unlock_door')
-        
-        # Verify that emergency cleanup was called
-        mock_gpio_driver.open_conversation.assert_called_once()
-        mock_gpio_driver.close_conversation.assert_called_once()
-        mock_gpio_driver.lock.assert_called_once()
-        
-        # unlock should not have been called due to early failure
-        mock_gpio_driver.unlock.assert_not_called()
+    intercom._execute_unlock_sequence = Mock()
+
+    # Simulate receiving correct unlock message
+    with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'open'):
+        intercom._handle_unlock_message('test/topic', 'open')
+
+    intercom._execute_unlock_sequence.assert_called_once()
 
 
-def test_handle_open_door_message_error_handling_cleanup_failure():
-    """Test error handling when both the main sequence and emergency cleanup fail."""
+# Test 22: Invalid unlock message does not trigger unlock
+def test_invalid_unlock_message_ignored():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    # Simulate failure in main sequence
-    mock_gpio_driver.open_conversation.side_effect = Exception("GPIO error")
-    # Simulate failure in emergency cleanup - close_conversation fails but lock succeeds
-    mock_gpio_driver.close_conversation.side_effect = Exception("Cleanup error")
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'unlock_door'):
-        # Should not raise exception even when cleanup fails
-        intercom._handle_open_door_message('test/unlock', 'unlock_door')
-        
-        # Verify that emergency cleanup was attempted for both operations
-        mock_gpio_driver.open_conversation.assert_called_once()
-        mock_gpio_driver.close_conversation.assert_called_once()
-        mock_gpio_driver.lock.assert_called_once()  # Should still be called even if close fails
+    intercom._execute_unlock_sequence = Mock()
+
+    # Simulate receiving incorrect message
+    with patch('src.config.DOOR_UNLOCKED_MESSAGE', 'open'):
+        intercom._handle_unlock_message('test/topic', 'wrong_message')
+
+    intercom._execute_unlock_sequence.assert_not_called()
 
 
-@patch('src.config.UNLOCK_TOPIC', 'test/unlock')
-@patch('src.config.DOOR_UNLOCKED_MESSAGE', 'test_unlock')
-def test_full_door_unlock_workflow():
+# ========== MQTT CONFIG TESTS ==========
+
+# Test 23: Config message updates auto_unlock setting
+def test_config_message_updates_auto_unlock():
     intercom = Intercom()
-    
-    mock_wifi_driver = Mock()
-    mock_mqtt_driver = Mock()
-    mock_gpio_driver = Mock()
-    
-    intercom.wifi_driver = mock_wifi_driver
-    intercom.mqtt_driver = mock_mqtt_driver
-    intercom.gpio_driver = mock_gpio_driver
-    
-    intercom.subscribe_to_mqtt_topic_for_opening_door()
-    
-    mock_mqtt_driver.subscribe.assert_called_once_with('test/unlock', intercom._handle_open_door_message)
-    
-    with patch('src.app.intercom.sleep'):
-        intercom._handle_open_door_message('test/unlock', 'test_unlock')
-        
-        mock_gpio_driver.open_conversation.assert_called_once()
-        mock_gpio_driver.unlock.assert_called_once()
-        mock_gpio_driver.close_conversation.assert_called_once()
-        mock_gpio_driver.lock.assert_called_once()
+
+    config_json = '{"auto_unlock": true}'
+    intercom._handle_config_message('config/topic', config_json)
+
+    assert intercom.auto_unlock == True
+
+
+# Test 24: Config message updates restart_after_seconds
+def test_config_message_updates_restart_after_seconds():
+    intercom = Intercom()
+
+    config_json = '{"restart_after_seconds": 86400}'
+    intercom._handle_config_message('config/topic', config_json)
+
+    assert intercom.restart_after_seconds == 86400
+
+
+# Test 25: Config message handles both settings
+def test_config_message_updates_both_settings():
+    intercom = Intercom()
+
+    config_json = '{"auto_unlock": true, "restart_after_seconds": 3600}'
+    intercom._handle_config_message('config/topic', config_json)
+
+    assert intercom.auto_unlock == True
+    assert intercom.restart_after_seconds == 3600
+
+
+# Test 26: Config message handles invalid JSON gracefully
+def test_config_message_handles_invalid_json():
+    intercom = Intercom()
+    original_auto_unlock = intercom.auto_unlock
+
+    # Send invalid JSON
+    intercom._handle_config_message('config/topic', 'not valid json {')
+
+    # Should not crash, settings should remain unchanged
+    assert intercom.auto_unlock == original_auto_unlock
+
+
+# ========== EXCEPTION HANDLING TESTS ==========
+
+# Test 27: Exception in main loop is caught and loop continues
+def test_exception_in_main_loop_is_caught():
+    intercom = Intercom()
+
+    call_count = 0
+    exception_raised = False
+
+    def mock_cycle():
+        nonlocal call_count, exception_raised
+        call_count += 1
+        if call_count == 1:
+            exception_raised = True
+            raise Exception("Test exception")
+        elif call_count >= 2:
+            intercom.stop()
+
+    intercom._process_cycle = mock_cycle
+
+    # Should not crash, should continue to second iteration
+    intercom.run()
+
+    assert exception_raised == True
+    assert call_count == 2  # Ran twice despite exception
+
+
+# Test 28: Multiple exceptions don't prevent operation
+def test_multiple_exceptions_handled_gracefully():
+    intercom = Intercom()
+
+    call_count = 0
+
+    def mock_cycle():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise Exception(f"Test exception {call_count}")
+        intercom.stop()
+
+    intercom._process_cycle = mock_cycle
+
+    with patch('src.helper.sleep.sleep'):  # Speed up test
+        intercom.run()
+
+    # Should have handled 2 exceptions and continued to 3rd call
+    assert call_count == 3
+

@@ -40,3 +40,8 @@ class MqttDriverInterface(ABC):
     def subscribe(self, topic: str, callback=None):
         """Subscribe to a specific topic."""
         pass
+
+    @abstractmethod
+    def is_connected(self) -> bool:
+        """Check if currently connected to the MQTT broker."""
+        pass

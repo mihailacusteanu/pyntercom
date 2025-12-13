@@ -1,4 +1,4 @@
-import time
+import time as time_module
 
 def sleep(seconds: float, force_real: bool = False) -> None:
     """
@@ -31,4 +31,14 @@ def sleep(seconds: float, force_real: bool = False) -> None:
     if use_mock:
         print(f"Mock sleep for {seconds} seconds")
     else:
-        time.sleep(seconds)
+        time_module.sleep(seconds)
+
+def time() -> float:
+    """
+    Get current time in seconds since epoch.
+    In tests, this can be patched, thats the reason of this function.
+    In production, returns actual time.time().
+    """
+    return time_module.time()
+
+
