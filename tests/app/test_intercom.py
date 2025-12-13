@@ -491,13 +491,15 @@ def test_run_continues_when_wifi_not_connected():
 
     intercom._process_cycle = mock_cycle
 
-    with patch('src.app.intercom.sleep'):
+    with patch('src.app.intercom.sleep') as mock_sleep:
         intercom.run()
 
     # _process_cycle should never be called since WiFi failed
     assert call_count == 0
     # Should have tried to connect multiple times
     assert attempt_count >= 3
+    # Critical fix: Sleep should be called on connection failures to prevent CPU spinning
+    assert mock_sleep.call_count >= 2
 
 
 def test_run_continues_when_mqtt_not_connected():
@@ -523,13 +525,15 @@ def test_run_continues_when_mqtt_not_connected():
 
     intercom._process_cycle = mock_cycle
 
-    with patch('src.app.intercom.sleep'):
+    with patch('src.app.intercom.sleep') as mock_sleep:
         intercom.run()
 
     # _process_cycle should never be called since MQTT failed
     assert call_count == 0
     # Should have tried to connect multiple times
     assert attempt_count >= 3
+    # Critical fix: Sleep should be called on connection failures to prevent CPU spinning
+    assert mock_sleep.call_count >= 2
 
 
 def test_wifi_connection_failure_logs_retry_message():
@@ -606,6 +610,8 @@ def test_call_detection_when_mqtt_not_connected():
 
     # Should NOT publish since MQTT is not connected
     intercom.mqtt_driver.publish.assert_not_called()
+    # But debounce timer SHOULD be updated (critical fix)
+    assert intercom._last_call_detected_time == 1001.0
 
 
 def test_unlock_sequence_handles_close_conversation_exception():

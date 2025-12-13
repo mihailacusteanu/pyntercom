@@ -103,9 +103,11 @@ class Intercom:
                     break
 
                 if not self._ensure_wifi_connected():
+                    sleep(1)  # Prevent CPU spinning on connection failures
                     continue
 
                 if not self._ensure_mqtt_connected():
+                    sleep(1)  # Prevent CPU spinning on connection failures
                     continue
 
                 if watchdog_timer is not None:
@@ -293,13 +295,15 @@ class Intercom:
 
         # Use debounce to prevent double unlocks
         if time_since_last_call > config.CALL_DEBOUNCE_SECONDS:
+            # Update debounce timer immediately to prevent rapid repeated calls
+            self._last_call_detected_time = current_time
+
             print(f"[{time.time()}] Call detected! Publishing to MQTT...")
             # Ensure MQTT is still connected before publishing
             if self.mqtt_driver.is_connected():
                 self.mqtt_driver.publish(
                     config.CALL_DETECTED_TOPIC, config.CALL_DETECTED_MESSAGE
                 )
-                self._last_call_detected_time = current_time
                 print(
                     f"[{time.time()}] Call published, next call allowed after: {current_time + config.CALL_DEBOUNCE_SECONDS}"
                 )
