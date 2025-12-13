@@ -57,13 +57,14 @@ class Intercom:
     }
     """
 
-    def __init__(self, restart_after_seconds: int = 172800) -> None:
+    def __init__(self, restart_after_seconds: int = 172800, ota_callback=None) -> None:
         self.running: bool = False
         self.start_time: Optional[float] = None
         self.restart_after_seconds: int = restart_after_seconds
         self.auto_unlock: bool = False
         self._last_call_detected_time: float = 0
         self._previous_call_state: bool = False
+        self.ota_callback = ota_callback  # Optional callback for OTA trigger
 
         print("Loading the drivers")
         from src.driver.driver_manager import DriverManager
@@ -182,6 +183,12 @@ class Intercom:
             )
             print("subscribing to unlock topic")
             self.mqtt_driver.subscribe(config.UNLOCK_TOPIC, self._handle_unlock_message)
+
+            # Subscribe to OTA topic if callback provided
+            if self.ota_callback:
+                print("subscribing to OTA topic")
+                self.mqtt_driver.subscribe("pyntercom/ota", self.ota_callback)
+
             print("asking MQTT for the configs")
             self.mqtt_driver.publish(config.LOGS_TOPIC, "give_me_the_config")
             return True

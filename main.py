@@ -25,11 +25,11 @@ OTA_TIMEOUT = 300  # 5 minutes
 
 def main():
     """Run intercom with optional OTA support."""
-    intercom = Intercom()
     ota_requested = False
 
+    # Define OTA callback if enabled
+    ota_callback = None
     if ENABLE_OTA:
-        # Subscribe to OTA trigger topic
         def handle_ota_message(topic: str, message: str) -> None:
             """Handle OTA trigger messages."""
             nonlocal ota_requested
@@ -40,19 +40,13 @@ def main():
                 ota_requested = True
                 intercom.stop()
 
-        try:
-            # Setup OTA trigger
-            print(f"[{time.time()}] Setting up OTA trigger...")
-            intercom.wifi_driver.connect(config.WIFI_SSID, config.WIFI_PASSWORD)
-            intercom.mqtt_driver.connect()
-            intercom.mqtt_driver.subscribe("pyntercom/ota", handle_ota_message)
-            print(f"[{time.time()}] ✅ OTA ready on topic: pyntercom/ota")
-            print(f"[{time.time()}] 💡 Send 'start_ota' to trigger OTA mode")
-        except Exception as e:
-            print(f"[{time.time()}] ⚠️  OTA setup failed: {e}")
-            print(f"[{time.time()}] Continuing without OTA support...")
+        ota_callback = handle_ota_message
+        print(f"[{time.time()}] OTA enabled - will subscribe to pyntercom/ota topic")
 
-    # Run intercom
+    # Create intercom with optional OTA callback
+    intercom = Intercom(ota_callback=ota_callback)
+
+    # Run intercom (it will handle WiFi/MQTT connection and subscriptions)
     print(f"[{time.time()}] Starting intercom...")
     intercom.run()
 
